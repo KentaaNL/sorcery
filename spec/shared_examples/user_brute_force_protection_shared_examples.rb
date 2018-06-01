@@ -57,9 +57,28 @@ shared_examples_for 'rails_3_brute_force_protection_model' do
 
       sorcery_model_property_set(:consecutive_login_retries_amount_limit, 1)
       user.register_failed_login!
-      lock_expires_at = User.sorcery_adapter.find_by_id(user.id).lock_expires_at
 
+      lock_expires_at = User.sorcery_adapter.find_by_id(user.id).lock_expires_at
       expect(lock_expires_at).not_to be_nil
+
+      failed_logins_count = User.sorcery_adapter.find_by_id(user.id).failed_logins_count
+      expect(failed_logins_count).to eq 1
+    end
+
+    it 'resets the number of failed logins when the lock time was expired' do
+      sorcery_model_property_set(:consecutive_login_retries_amount_limit, 2)
+      sorcery_model_property_set(:login_lock_time_period, 0.2)
+      2.times { user.register_failed_login! }
+
+      failed_logins_count = User.sorcery_adapter.find_by_id(user.id).failed_logins_count
+      expect(failed_logins_count).to eq 2
+
+      Timecop.travel(Time.now.in_time_zone + 0.3)
+      user.register_failed_login!
+
+      failed_logins_count = User.sorcery_adapter.find_by_id(user.id).failed_logins_count
+      expect(failed_logins_count).to eq 1
+      Timecop.return
     end
 
     context 'unlock_token_mailer_disabled is true' do

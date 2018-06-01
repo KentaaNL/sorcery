@@ -66,7 +66,10 @@ module Sorcery
           # Calls 'login_lock!' if login retries limit was reached.
           def register_failed_login!
             config = sorcery_config
-            return unless login_unlocked?
+
+            login_unlock_when_expired!
+
+            return if login_locked?
 
             sorcery_adapter.increment(config.failed_logins_count_attribute_name)
 
@@ -117,14 +120,19 @@ module Sorcery
           # Prevents a locked user from logging in, and unlocks users that expired their lock time.
           # Runs as a hook before authenticate.
           def prevent_locked_user_login
-            config = sorcery_config
-            if !login_unlocked? && config.login_lock_time_period != 0
-              login_unlock! if send(config.lock_expires_at_attribute_name) <= Time.now.in_time_zone
-            end
+            login_unlock_when_expired!
 
             return false, :locked unless login_unlocked?
 
             true
+          end
+
+          # Unlock user when lock time was expired.
+          def login_unlock_when_expired!
+            config = sorcery_config
+            if login_locked? && config.login_lock_time_period != 0
+              login_unlock! if send(config.lock_expires_at_attribute_name) <= Time.now.in_time_zone
+            end
           end
         end
       end
